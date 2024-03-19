@@ -1,7 +1,10 @@
+from csp_utils import CSP_Instance, mc_weighted_language
 from model import RUN_CSP
-from csp_utils import Constraint_Language, CSP_Instance
 
+from utils import GraphDataset,mk_dir
 import argparse
+import numpy as np
+import networkx as nx
 import numpy as np
 from tqdm import tqdm
 
@@ -32,27 +35,29 @@ def train(network, train_data, t_max, epochs):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-l', '--language_config_path', type=str,  help='The path to a json file that specifies the constraint language')
-    parser.add_argument('-m', '--model_dir', type=str, help='Path to the model directory where the trained RUN-CSP instance will be stored')
-    parser.add_argument('-v', '--n_variables', type=int, default=100, help='Number of variables in each training instance.')
-    parser.add_argument('--c_min', type=int, default=100, help='Minimum number of clauses in each training instance.')
-    parser.add_argument('--c_max', type=int, default=600, help='Maximum number of clauses in each training instance.')
-    parser.add_argument('-i', '--n_instances', type=int, default=4000, help='Number of instances for training.')
+    parser.add_argument('--distribution', type=str,  help='Distribution of dataset')
     parser.add_argument('-t', '--t_max', type=int, default=30, help='Number of iterations t_max for which RUN-CSP runs on each instance')
     parser.add_argument('-s', '--state_size', type=int, default=128, help='Size of the variable states in RUN-CSP')
     parser.add_argument('-b', '--batch_size', type=int, default=10, help='Batch size used during training')
     parser.add_argument('-e', '--epochs', type=int, default=25, help='Number of training epochs')
+
     args = parser.parse_args()
-
-    print(f'Loading constraint language from {args.language_config_path}')
-    language = Constraint_Language.load(args.language_config_path)
+    language = mc_weighted_language
+    train_graph_gen=GraphDataset(folder_path=f'../data/training/{args.distribution}')
+    print(f'Number of graphs:{len(train_graph_gen)}')
+    graphs = [nx.from_numpy_array(train_graph_gen.get()) for _ in range(len(train_graph_gen))]
+    
+    train_instances = [CSP_Instance.graph_to_weighted_mc_instance(g) for g in tqdm(graphs)]
+    del graphs
+    train_batches = CSP_Instance.batch_instances(train_instances,32)
+    del train_instances
+    
+    model_save_path=f'models/{args.distribution}'
+    mk_dir(model_save_path)
     # create RUN_CSP instance for given constraint language
-    network = RUN_CSP(args.model_dir, language, args.state_size)
+    network = RUN_CSP(model_save_path, language)
 
-    print(f'Generating {args.n_instances} training instances')
-    train_instances = [CSP_Instance.generate_random(args.n_variables, np.random.randint(args.c_min, args.c_max), language) for _ in tqdm(range(args.n_instances))]
-    # combine instances into batches
-    train_batches = CSP_Instance.batch_instances(train_instances, args.batch_size)
+ 
 
     # train and store the network
     train(network, train_batches, args.t_max, args.epochs)

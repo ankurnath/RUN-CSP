@@ -7,6 +7,9 @@ from tqdm import tqdm
 from csp_utils import Constraint_Language, CSP_Instance, max_2sat_language, is_language
 
 
+tf.compat.v1.disable_eager_execution()
+
+
 class Message_Network:
     """ Message Network that sends messages between variables """
 
@@ -17,7 +20,7 @@ class Message_Network:
         """
         self.out_units = out_units
         self.activation = activation
-        
+
         # Output layer for generating both messages
         self.out_layer = tf.keras.layers.Dense(2 * self.out_units,
                                                activation=activation,
@@ -122,7 +125,7 @@ class RUN_CSP_Cell:
         self.clauses = network.clauses
         self.idx_left = network.idx_left
         self.idx_right = network.idx_right
-        
+
         self.degrees = tf.cast(tf.reshape(network.degrees, [self.n_variables, 1]), dtype=tf.float32)
 
         # Batch normalization layer to normalize recieved messages
@@ -173,7 +176,7 @@ class RUN_CSP_Cell:
             # call the message network of the current relation to compute messages
             message_network = self.message_networks[r]
             msg_left, msg_right = message_network(clause_in_left, clause_in_right)
-            
+
             # sum up messages for each node
             variable_in_left = tf.scatter_nd(self.idx_left[r], msg_left, shape=[self.n_variables, self.state_size[0]])
             variable_in_right = tf.scatter_nd(self.idx_right[r], msg_right, shape=[self.n_variables, self.state_size[0]])
@@ -204,7 +207,8 @@ class RUN_CSP:
         :param state_size: The length of the variable state vectors
         """
         # create session
-        self.session = tf.Session()
+        # self.session = tf.Session()
+        self.session=tf.compat.v1.Session()
         self.session.as_default()
 
         self.model_dir = model_dir
@@ -231,14 +235,14 @@ class RUN_CSP:
         # placeholder for the number of iterations t_max
         self.iterations = tf.compat.v1.placeholder(dtype=tf.int32)
 
-        """ 
+        """
         Placeholders that store the clauses for each iteration.
         For each relation type r, the clauses of this type are stored as tuples in a tensor of shape (n_r, 2),
-        where n_r is the number of clauses of type r. 
+        where n_r is the number of clauses of type r.
         """
         self.clauses = {r: tf.compat.v1.placeholder(dtype=tf.int32) for r in self.language.relation_names}
-        
-        """ 
+
+        """
         Split the clause tensors into single column matrices that each contain the left and right variables of each constraint, respectively.
         These are needed for the gather and scatter operations in the messaging process.
         """
@@ -275,8 +279,8 @@ class RUN_CSP:
             self.load_checkpoint()
         else:
             # initialize tensorflow variables otherwise
-            init_global = tf.global_variables_initializer()
-            init_local = tf.local_variables_initializer()
+            init_global = tf.compat.v1.global_variables_initializer()
+            init_local = tf.compat.v1.local_variables_initializer()
             self.session.run([init_global, init_local])
             self.save_parameters()
 
@@ -403,7 +407,7 @@ class RUN_CSP:
 
         for r in self.language.relation_names:
             feed_dict[self.clauses[r]] = instance.clauses[r]
-            
+
         return feed_dict
 
     def train(self, instances, iterations):
@@ -479,14 +483,14 @@ class RUN_CSP:
         best_assignment = assignments[best[0], :, best[1]]
         best_conflicts = conf[best]
         best_conflict_ratio = best_conflicts / instance.n_clauses
-        
+
         output = {'assignment': best_assignment,
                   'conflicts': best_conflicts,
                   'conflict_ratio': best_conflict_ratio,
                   'all_assignments': assignments,
                   'all_conflicts': conf}
         return output
-        
+
     def save_checkpoint(self, name='best'):
         """
         Save the current graph and summaries in the model directory
@@ -496,6 +500,8 @@ class RUN_CSP:
 
         session = self.session
         saver = tf.compat.v1.train.Saver()
+        #Nath
+        # saver = tf.train.Saver(write_version=tf.train.SaverDef.V1)
         path = saver.save(session, path)
         print("Model saved in file: %s" % path)
 
@@ -603,7 +609,7 @@ class Max_IS_Network(RUN_CSP):
 
         output = {'conflict_ratio': res[1], 'is_ratio': res[4], 'corrected_ratio': res[5]}
         return output
-    
+
     def predict_boosted_and_corrected(self, instance, iterations, attempts):
         """
         Generate predictions with boosted performance by making multiple runs in parallel and using the best result.
