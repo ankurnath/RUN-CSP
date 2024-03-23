@@ -212,8 +212,9 @@ class RUN_CSP:
         self.session.as_default()
 
         self.model_dir = model_dir
-        if not os.path.exists(model_dir):
-            os.mkdir(model_dir)
+        os.makedirs(model_dir,path_exists=True)
+        # if not os.path.exists(model_dir):
+        #     os.mkdir(model_dir)
 
         self.language = language
         self.domain_size = language.domain_size
