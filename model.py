@@ -212,7 +212,7 @@ class RUN_CSP:
         self.session.as_default()
 
         self.model_dir = model_dir
-        os.makedirs(model_dir,path_exists=True)
+        os.makedirs(model_dir,exist_ok=True)
         # if not os.path.exists(model_dir):
         #     os.mkdir(model_dir)
 
